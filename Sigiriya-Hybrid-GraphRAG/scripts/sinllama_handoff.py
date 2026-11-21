@@ -29,7 +29,7 @@ DEMO_QUESTIONS = (
 )
 RUNTIME_FILES = (
     "src/__init__.py", "src/config.py", "src/generation.py", "src/prompting.py", "src/verification.py",
-    "scripts/sinllama_handoff.py",
+    "scripts/sinllama_handoff.py", "src/legacy_rag_prompt.py",
 )
 RUNTIME_NAME = "sigiriya_sinllama_runtime_v4.zip"
 ACCEPTED = "GENERATED_EXACT_SOURCE_QUOTE_REVIEW_REQUIRED"

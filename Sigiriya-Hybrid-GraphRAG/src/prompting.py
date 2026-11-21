@@ -1,5 +1,7 @@
 """Sinhala prompts and fallback messages for source-grounded answers."""
 
+from .legacy_rag_prompt import render_legacy_rag_prompt
+
 
 NO_SOURCE_SI = (
     "ලබාදී ඇති සීගිරිය ලේඛනයෙන් මෙම ප්‍රශ්නයට අවශ්‍ය "
@@ -76,7 +78,9 @@ PROMPT_FORMATS = {
 
 def build_prompt(question, sources, *, variant="source_qa"):
     """Build a base-model completion prompt with the full selected evidence."""
-    instruction, source_label, question_label, answer_label = PROMPT_FORMATS[variant]
     context = build_evidence_context(sources, max_chars_each=None)
+    if variant == "legacy_rag_prompt":
+        return render_legacy_rag_prompt(question, context)
+    instruction, source_label, question_label, answer_label = PROMPT_FORMATS[variant]
     prefix = f"{instruction}\n" if instruction else ""
     return f"{prefix}{source_label}:\n{context}\n\n{question_label}: {question}\n{answer_label}:"

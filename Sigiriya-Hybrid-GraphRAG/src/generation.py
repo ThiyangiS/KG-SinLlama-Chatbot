@@ -124,6 +124,9 @@ class SinLlamaGenerator:
     def _build_prompt(self, question, sources):
         return build_prompt(question, sources, variant=self.config.prompt_variant)
 
+    def _prompt_markers(self):
+        return PROMPT_MARKERS
+
     def propose(self, question, sources):
         """Generate a candidate from the selected source excerpts."""
         self.last_generation = {}
@@ -153,7 +156,7 @@ class SinLlamaGenerator:
         evidence = "\n".join(row["source_quote"] for row in sources)
         evidence_tokens = len(tokenizer.encode(evidence, add_special_tokens=False))
         budget = min(config.max_new_tokens, max(config.simple_max_new_tokens, evidence_tokens + 32))
-        stops = list(PROMPT_MARKERS)
+        stops = list(self._prompt_markers())
         if len(question.strip()) >= 20:
             stops.extend(dict.fromkeys((question.strip(), question.strip().rstrip(".?!"))))
         eos = model.generation_config.eos_token_id
