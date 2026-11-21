@@ -1,0 +1,8 @@
+﻿question_id,historical_gold,review_candidate,judgment,source_basis,recommendation
+Q01,sigiriya_001,,no_alternative_identified,Section 1 gives both Central Province and Matale District.,Keep historical label for this run.
+Q14,sigiriya_014,,no_alternative_identified,Section 14 explicitly places Mapagala south of Sigiriya.,Keep historical label for this run.
+Q17,sigiriya_017,sigiriya_020,alternative_for_same_facet,Sections 17 and 20 each advise carrying enough drinking water before the climb.,Review as an either-or group. Do not require both chunks for complete coverage.
+Q20,sigiriya_020,,no_alternative_identified,Section 20 explains slippery steps and reduced visibility in rain. Section 21 discusses wasps without connecting them to rain.,Keep historical label for this run.
+Q26,sigiriya_003;sigiriya_013;sigiriya_020,sigiriya_017,partial_overlap_only,Section 17 supports the drinking-water facet but does not cover all the safety and preparation details in section 20.,Review facet requirements and alternative passages for each facet. Do not substitute section 17 for all of section 20.
+Q28,sigiriya_021;sigiriya_022,sigiriya_005,partial_overlap_only,Section 5 forbids writing on the Mirror Wall. Section 22 gives broader preservation advice and section 21 covers wasps.,Keep the two required facets. Review section 5 as supplementary only.
+Q29,sigiriya_018;sigiriya_015,,no_alternative_identified,Section 15 mentions hotels arranging safaris but section 18 supplies lodging options.,Keep both required facets.

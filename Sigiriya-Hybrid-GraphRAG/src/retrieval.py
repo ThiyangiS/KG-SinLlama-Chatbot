@@ -8,44 +8,74 @@ from .config import HEADING_INDEX, RRF_K, TEXT_INDEX, TOP_K
 from .graph import linked_entities, load_entities, load_sources, search_index, traverse
 
 
+# Recognize complete request endings so topic names retain their Sinhala inflections.
+_HOW = r"(?:කෙසේද|කොහොමද)"
+_REQUEST = r"(?:කියන්න|දෙන්න|කරන්න)"
+_GENERAL_END = (
+    rf"(?:ගැන|පිළිබඳ)\s+(?:(?:විස්තර|තොරතුරු|පැහැදිලි)\s+)?{_REQUEST}"
+    r"|(?:විස්තර|පැහැදිලි|හඳුන්වා)\s+(?:කරන්න|කියන්න|දෙන්න)"
+)
+_OPERATION = r"(?:ක්\u200d?රියාත්මක|භාවිත|යොදා\s+ගනු)"
+_OPERATION_END = (
+    rf"{_OPERATION}\s+(?:(?:වන්නේ|වෙන්නේ|කරන්නේ|කෙරෙන්නේ|ලබන්නේ)\s+{_HOW}"
+    rf"|(?:වන|වෙන|කරන|කෙරෙන)\s+(?:ආකාරය|ක්\u200d?රමය)\s+(?:විස්තර|පැහැදිලි)\s+{_REQUEST})"
+    rf"|{_HOW}\s+{_OPERATION}\s+(?:වන්නේ|වෙන්නේ|කරන්නේ)"
+)
+_LOCATION = r"(?:කොහේද|කොහෙද|කොතැනද|කොතැනකද)"
+_REASON_END = r"(?:වැදගත්|විශේෂ|ප්‍රසිද්ධ|ජනප්‍රිය)\s+(?:වන්නේ|වෙන්නේ|වී\s+ඇත්තේ)\s+ඇයි"
+_TOPIC_REQUEST = re.compile(
+    rf"^(?P<topic>.+?)\s+(?:(?P<both>දෙකම|දෙකේම|දෙකෙහිම)\s+)?"
+    rf"(?:(?P<operation>{_OPERATION_END})"
+    rf"|(?P<location>(?:පිහිටා\s+(?:ඇත්තේ|තිබෙන්නේ)\s+)?{_LOCATION})"
+    rf"|(?P<reason>{_REASON_END})|(?P<general>{_GENERAL_END}))$"
+)
+_KEEP_TOGETHER = re.compile(
+    r"අතර|සසඳ|සංසන්දන|වෙනස්කම්|සමානකම්|සම්බන්ධ|එකට|එක්ව|යොදාගෙන|භාවිත කරමින්"
+    r"|ගුරුත්වාකර්ෂණය\s+සහ\s+ජල\s+පීඩනය"
+    r"|ආහාර\s+සහ\s+පාන|ප්‍රවේශපත්‍ර\s+සහ\s+සංචාරක\s+මාර්ගෝපදේශකයන්"
+)
+
+
 def clean_topic(text):
-    """Remove request wording, keeping the named topic (heuristic)."""
-    text = text.strip(" .?!？")
-    text = re.split(
-        r"\s+(?:ගැන|අතර|ලක්ෂණ|දෙකම|වෙනස්කම්|මොනවාද|කුමක්ද)\b",
-        text,
-        maxsplit=1,
-    )[0]
-    return text.strip(" .?!？")
+    """Strip a recognized request ending while preserving the topic wording."""
+    topic = " ".join(text.split()).strip(" .?!？")
+    match = _TOPIC_REQUEST.fullmatch(topic)
+    return match["topic"] if match else topic
 
 
 def decompose(question):
-    """Split a few common Sinhala two-topic constructions.
+    """Split only recognizable two-topic requests with a safe reading."""
+    text = " ".join(question.split())
+    body = text.rstrip(" .?!？")
+    ending = text[len(body):] or "."
+    if _KEEP_TOGETHER.search(body):
+        return [question]
 
-    Unknown constructions are left unsplit; the system makes no claim to
-    understand all Sinhala grammar. Neither gold labels nor chunk IDs are used.
-    """
-    question = " ".join(question.strip().split())
+    if body.count(" සහ ") == 1:
+        left, right = body.split(" සහ ")
+        request = _TOPIC_REQUEST.fullmatch(right)
+        if not request or re.search(r"[.?!？,:;]", left):
+            return [question]
+        left_request = _TOPIC_REQUEST.fullmatch(left)
+        if left_request:
+            left_ending = "." if left_request["general"] else ending
+            return [left + left_ending, right + ending]
 
-    # "A සහ B ..." (comparison or a request about two places/topics).
-    if " සහ " in question:
-        left, right = question.split(" සහ ", 1)
-        left, right = clean_topic(left), clean_topic(right)
-        if left and right:
-            context = "සීගිරියේ " if left.startswith("සීගිරියේ ") else ""
-            if context and not right.startswith(("සීගිරි", "සීගිරිය", "පිදුරංගල")):
-                right = context + right
-            return [f"{left} ගැන විස්තර කියන්න.", f"{right} ගැන විස්තර කියන්න."]
+        # An unmarked embedded "explain how B works" can be a request
+        # for an overview of A followed by an explanation of B's operation.
+        operation = request["operation"]
+        if operation and operation.endswith(("කරන්න", "කියන්න", "දෙන්න")) and not request["both"]:
+            return [f"{left} ගැන විස්තර කියන්න.", request["topic"] + " " + operation + ending]
 
-    # "Aත් Bත් මොනවාද?" (e.g., route AND visiting time).
-    m = re.match(r"^(.+?)ත්\s+(.+?)ත්\s+(?:මොනවාද|කුමක්ද|මොකක්ද)[?？.]?$", question)
-    if m:
-        left, right = clean_topic(m.group(1)), clean_topic(m.group(2))
-        if left and right:
-            if right.startswith("එහි ") and "සීගිරිය" in left:
-                right = right.replace("එහි ", "සීගිරියට ", 1)
-            return [f"{left} ගැන විස්තර කියන්න.", f"{right} ගැන විස්තර කියන්න."]
+        action = request[request.lastgroup]
+        return [f"{topic} {action}{ending}" for topic in (left, request["topic"])]
 
+    # Aත් Bත් requests can be split when both topics stand on their own.
+    paired = re.fullmatch(
+        r"(.+?)ත්\s+(.+?)ත්\s+(මොනවාද|කුමක්ද|මොකක්ද)", body
+    )
+    if paired and " සහ " not in body and not paired[2].startswith(("එහි ", "එයට ")):
+        return [f"{topic} {paired[3]}{ending}" for topic in (paired[1], paired[2])]
     return [question]
 
 
@@ -138,45 +168,117 @@ def _norm(s):
     return re.sub(r'[\u200b\u200c\u200d\ufeff]', '', (s or '').casefold()).strip()
 
 
+DESTINATION_ANCHOR = "sg:dest"
+ANCHOR_REQUEST_TERMS = {
+    "පැහැදිලි", "කෙසේද", "කොහොමද", "ආකාරය", "පිළිබඳ",
+    "කුමන", "කොහේද", "කොතැනද", "ඇයි", "වන්නේ", "වෙනුවෙන්",
+    "හැකි", "දැකිය", "දැකගත", "තිබූ", "ඇති", "පැරණි", "ඉපැරණි",
+    "සීගිරි", "sigiriya", "tell", "about", "what", "where", "how", "why",
+}
+_SINHALA_SUFFIX = r"(?:වල(?:ට|ින්|දී)?|යේ|ගේ|ට|ෙන්|ෙහි|දී)?"
+_ALIAS_LEFT = r"(?<![\w\u0d80-\u0dff])"
+_ALIAS_RIGHT = r"(?![\w\u0d80-\u0dff])"
+
+
+def _matching_alias_length(text, aliases):
+    """Match full aliases, allowing common Sinhala inflections."""
+    longest = 0
+    for alias in aliases or ():
+        name = _norm(alias)
+        if len(name) < 4 or len(name) <= longest:
+            continue
+        suffix = _SINHALA_SUFFIX if "\u0d80" <= name[-1] <= "\u0dff" else ""
+        if re.search(f"{_ALIAS_LEFT}{re.escape(name)}{suffix}{_ALIAS_RIGHT}", text):
+            longest = len(name)
+    return longest
+
+
 def find_anchors(question, entities, max_anchors=6):
-    q = _norm(question)
-    matches=[]
-    for ent in entities:
-        candidates=[a for a in ent['aliases'] if len(_norm(a))>=4 and _norm(a) in q]
-        if candidates:
-            a=max(candidates,key=lambda x:len(_norm(x)))
-            matches.append((len(_norm(a)),ent['id']))
-    matches.sort(key=lambda x:(-x[0],x[1]))
-    names=[eid for _,eid in matches if eid!='sg:dest'][:max_anchors]
-    return names or ['sg:dest']
+    """Return explicit matches, with the destination used only as a fallback."""
+    text = _norm(question)
+    matches = [
+        (_matching_alias_length(text, entity["aliases"]), entity["id"])
+        for entity in entities
+    ]
+    matches.sort(key=lambda item: (-item[0], item[1]))
+    specific = [
+        entity_id for length, entity_id in matches
+        if length and entity_id != DESTINATION_ANCHOR
+    ][:max_anchors]
+    if specific:
+        return specific
+    return [DESTINATION_ANCHOR] if any(
+        length and entity_id == DESTINATION_ANCHOR for length, entity_id in matches
+    ) else []
+
+
+def _anchor_terms(text):
+    return source_terms(text) - ANCHOR_REQUEST_TERMS
+
+
+def _matched_terms(terms, text):
+    """Match topic words with a little tolerance for Sinhala word endings."""
+    candidates = _anchor_terms(text)
+    return {
+        term for term in terms
+        if any(
+            term == candidate or (
+                min(len(term), len(candidate)) >= 5
+                and abs(len(term) - len(candidate)) <= 2
+                and (term.startswith(candidate) or candidate.startswith(term))
+            )
+            for candidate in candidates
+        )
+    }
 
 
 def resolve_anchors(session, question, entities, semantic_ranking):
-    """Resolve named entities from BOTH the question and semantically found chunks.
+    """Keep explicit anchors and require topical support for vector-linked additions."""
+    explicit = find_anchors(question, entities)
+    specific = [entity_id for entity_id in explicit if entity_id != DESTINATION_ANCHOR]
+    if len(specific) >= 6:
+        return specific
 
-    Linked graph candidates are read from the existing chunk-entity connection,
-    so synonym/paraphrase questions need not contain literal entity names.
-    No test gold is supplied here.
-    """
-    explicit=find_anchors(question,entities,max_anchors=6)
-    ranked=list(explicit) if explicit!=['sg:dest'] else []
-    top=list(dict.fromkeys(semantic_ranking[:5]))
-    if top:
-        candidates=[]
-        for rec in linked_entities(session, top):
-            entid=rec['id']
-            if entid=='sg:dest' or entid in ranked: continue
-            aliases=rec['aliases'] or []
-            in_heading=max((len(_norm(a)) for a in aliases if len(_norm(a))>=4 and _norm(a) in _norm(rec['heading'])),default=0)
-            match_query=max((len(_norm(a)) for a in aliases if len(_norm(a))>=4 and _norm(a) in _norm(question)),default=0)
-            kind_prior=1 if rec['kind'] in ('Attraction','NearbyPlace','Service','HistoricFeature','EngineeringFeature') else 0
-            value=4*match_query+2*in_heading+kind_prior-3*rec['pos']
-            candidates.append((value,entid))
-        candidates.sort(key=lambda x:(-x[0],x[1]))
-        for _,eid in candidates:
-            if eid not in ranked:ranked.append(eid)
-            if len(ranked)>=6:break
-    return ranked[:6] or ['sg:dest']
+    # For named topics, seek evidence for the remaining question terms.
+    # A chunk about an already named entity alone cannot justify a new anchor.
+    remaining = _anchor_terms(question)
+    for entity in entities:
+        if entity["id"] in specific or entity["id"] == DESTINATION_ANCHOR:
+            for alias in entity["aliases"] or ():
+                remaining -= _matched_terms(remaining, alias)
+    top = list(dict.fromkeys(semantic_ranking[:5]))
+    if not remaining or not top:
+        return explicit
+
+    scores = {}
+    for row in linked_entities(session, top):
+        entity_id = row["id"]
+        if entity_id == DESTINATION_ANCHOR or entity_id in specific:
+            continue
+        heading = row["heading"]
+        heading_hits = _matched_terms(remaining, heading)
+        body_hits = _matched_terms(remaining, row.get("evidence"))
+        alias_hits = {
+            term for alias in row["aliases"] or () for term in _matched_terms(remaining, alias)
+        }
+        in_heading = _matching_alias_length(_norm(heading), row["aliases"]) > 0
+        position = row["pos"]
+
+        # Rank corroborates textual evidence. It cannot qualify a candidate alone.
+        alias_supported = alias_hits and (heading_hits or len(body_hits) >= 2)
+        heading_supported = in_heading and (
+            len(heading_hits) >= 2 or (position < 2 and (heading_hits or len(body_hits) >= 2))
+        )
+        if not (alias_supported or heading_supported):
+            continue
+        score = 3 * len(alias_hits) + 2 * len(heading_hits) + len(body_hits) + int(in_heading)
+        key = (score, -position)
+        scores[entity_id] = max(key, scores.get(entity_id, key))
+
+    recovered = sorted(
+        scores, key=lambda entity_id: (-scores[entity_id][0], -scores[entity_id][1], entity_id)
+    )
+    return (specific + recovered)[:6] or explicit
 
 
 def source_terms(s):
@@ -195,8 +297,18 @@ def graph_paths(session, question, entities, anchors, limit=20):
     A two-edge return cannot be faked by a single chunk lookup: it requires
     persisted linked nodes and sourced relationships.
     """
-    seeds=list(dict.fromkeys([*anchors,'sg:dest']))[:7]
+    if not anchors or limit <= 0:
+        return []
+    specific = set(anchors) - {DESTINATION_ANCHOR}
+    seeds = list(dict.fromkeys([*anchors, DESTINATION_ANCHOR]))[:7]
     rows = traverse(session, seeds)
+    if specific:
+        # Keep destination paths only when they bridge to a selected entity.
+        rows = [
+            row for row in rows
+            if row["seed"] != DESTINATION_ANCHOR
+            or specific.intersection(row["entity_ids"])
+        ]
     byid={e['id']:e for e in entities}
     qnorm=_norm(question)
     for p in rows:

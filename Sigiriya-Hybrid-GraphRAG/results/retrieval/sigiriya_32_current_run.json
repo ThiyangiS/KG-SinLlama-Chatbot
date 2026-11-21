@@ -1,0 +1,29 @@
+{
+  "dataset": "notebooks/Sigiriya_Local_GraphRAG_32_Question_Evaluation.ipynb",
+  "dataset_sha256": "d4e11932a3812de1716882ef476e2facbe997c42c647bc9e3088f3b2c67410c8",
+  "question_counts": {
+    "single": 22,
+    "multi": 7,
+    "unsupported": 3
+  },
+  "gold_provenance": "Historical source-section labels from the notebook's TESTS assignment.",
+  "embedding_model": "intfloat/multilingual-e5-base",
+  "vector_indexes": [
+    "sigiriya_chunk_vectors",
+    "sigiriya_heading_vectors"
+  ],
+  "vector_limit": 22,
+  "rrf_k": 60,
+  "protected_hybrid_window": 3,
+  "source_chunks_sha256": "7825e43fb22884bd937ef774ef186ea4cf84a51062bf30b47dce3f57154eda6f",
+  "production_file_sha256": {
+    "config.py": "993dc5c75df4dba892401473f4a6ef93502d200c2b2248d95cdceb2f765a18d0",
+    "embeddings.py": "a8638f7e04bcdd57ddda97e8ccd3dea305d37ea4f6f553274d35967b55fb0a43",
+    "graph.py": "e8604c3388b7ea24fca1b47ee121833efef62595d5b46c1fa8302caddfd918f2",
+    "retrieval.py": "393c24ffbb34ca65f364eae9b3f973d0d3d8ab67d9560b9bc776521d92466995"
+  },
+  "unscored_policy": "Retrieve for no-gold questions and exclude them from all metric denominators.",
+  "answer_correctness": "not_evaluated",
+  "graph_path_relevance": "not_evaluated",
+  "selected_evidence_coverage": "not_evaluated"
+}

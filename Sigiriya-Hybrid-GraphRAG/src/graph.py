@@ -82,7 +82,7 @@ def linked_entities(session, chunk_ids):
     MATCH (c:Chunk {id:$ids[pos]})-[:LINKS_TO_ENTITY]->(e:TourismEntity)
     WHERE c.destination='Sigiriya' AND e.scope='Sigiriya'
     RETURN pos,e.id AS id,e.kind AS kind,e.aliases AS aliases,
-           c.heading AS heading
+           c.heading AS heading, c.text AS evidence
     ORDER BY pos
     LIMIT 100
     """

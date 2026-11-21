@@ -152,7 +152,7 @@ class PipelineTests(unittest.TestCase):
         question = "සීගිරිය ගැන කියන්න."
         row = {"chunk_id": "art", "heading": "සිතුවම්", "source_quote": FakeSession().quote}
         prompt = build_prompt(question, [row])
-        self.assertIn(f"ප්‍රශ්නය: {question}", prompt)
+        self.assertIn(f"Question: {question}\nAnswer:", prompt)
         self.assertIn("[art] සිතුවම්", prompt)
         self.assertIn(row["source_quote"], prompt)
 
