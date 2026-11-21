@@ -1,0 +1,10 @@
+question_id,profile,direct_answer,topics_covered,all_claims_supported,uncertainty_preserved,sinhala_readability,generation_issue,strict_reason,experimental_reason,final_origin,review_notes
+Q01,question_only,,,,,,,,,,
+Q01,sinhala_qa,,,,,,,,,,
+Q01,sinhala_system_grounded,,,,,,,,,,
+Q03,question_only,,,,,,,,,,
+Q03,sinhala_qa,,,,,,,,,,
+Q03,sinhala_system_grounded,,,,,,,,,,
+Q05,question_only,,,,,,,,,,
+Q05,sinhala_qa,,,,,,,,,,
+Q05,sinhala_system_grounded,,,,,,,,,,

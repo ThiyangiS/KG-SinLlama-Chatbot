@@ -121,6 +121,9 @@ class SinLlamaGenerator:
         )
         self._tokenizer, self._model = tokenizer, model.eval()
 
+    def _build_prompt(self, question, sources):
+        return build_prompt(question, sources, variant=self.config.prompt_variant)
+
     def propose(self, question, sources):
         """Generate a candidate from the selected source excerpts."""
         self.last_generation = {}
@@ -139,7 +142,7 @@ class SinLlamaGenerator:
 
         tokenizer, model, config = self._tokenizer, self._model, self.config
         inputs = tokenizer(
-            build_prompt(question, sources, variant=config.prompt_variant),
+            self._build_prompt(question, sources),
             return_tensors="pt",
         )
         if inputs["input_ids"].shape[-1] > config.max_input_tokens:
