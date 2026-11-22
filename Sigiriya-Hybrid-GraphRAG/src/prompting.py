@@ -1,5 +1,7 @@
 """Sinhala prompts and fallback messages for source-grounded answers."""
 
+import re
+
 from .legacy_rag_prompt import render_legacy_rag_prompt
 
 
@@ -16,7 +18,7 @@ NO_LIVE_SI = (
 )
 
 
-def build_evidence_context(sources, max_chars_each=600):
+def build_evidence_context(sources, max_chars_each=600, *, clean_evidence=False):
     """Format up to six selected quotes with their chunk IDs and headings."""
     lines = []
     seen = set()
@@ -24,7 +26,12 @@ def build_evidence_context(sources, max_chars_each=600):
         key = (row["chunk_id"], row["source_quote"])
         if key not in seen:
             seen.add(key)
-            lines.append(f"[{key[0]}] {row['heading']}\n{key[1][:max_chars_each]}")
+            heading = row["heading"]
+            if clean_evidence:
+                heading = re.sub(r"^\s*\d+\.\s*", "", heading)
+            else:
+                heading = f"[{key[0]}] {heading}"
+            lines.append(f"{heading}\n{key[1][:max_chars_each]}")
     return "\n\n".join(lines)
 
 
@@ -62,6 +69,14 @@ FEW_SHOT_EXAMPLE = (
 )
 
 
+FOCUSED_SINHALA_INSTRUCTIONS = """පහත තොරතුරු පමණක් භාවිත කරමින් ප්‍රශ්නයට පිළිතුරු දෙන්න.
+අදාළ වැදගත් කරුණු සියල්ල ඇතුළත් කරන්න.
+තොරතුරුවල නොමැති කරුණු එකතු නොකරන්න.
+අවිනිශ්චිත කරුණු නිශ්චිත ලෙස නොකියන්න.
+ප්‍රශ්නය නැවත නොලියන්න.
+පිළිතුර අවසන් වූ විට <END_ANSWER> යොදන්න."""
+
+
 PROMPT_FORMATS = {
     "source_qa": ("", "Sources", "Question", "Answer"),
     "sinhala_qa": ("", "මූලාශ්‍ර", "ප්‍රශ්නය", "පිළිතුර"),
@@ -73,12 +88,17 @@ PROMPT_FORMATS = {
         SINHALA_SYSTEM_PROMPT + "\n", "මූලාශ්‍ර තොරතුරු", "ප්‍රශ්නය", "පිළිතුර",
     ),
     "few_shot": (FEW_SHOT_EXAMPLE.rstrip(), "Sources", "Question", "Answer"),
+    "focused_sinhala_qa": (
+        FOCUSED_SINHALA_INSTRUCTIONS + "\n", "තොරතුරු", "ප්‍රශ්නය", "පිළිතුර",
+    ),
 }
 
 
-def build_prompt(question, sources, *, variant="source_qa"):
+def build_prompt(question, sources, *, variant="source_qa", clean_evidence=False):
     """Build a base-model completion prompt with the full selected evidence."""
-    context = build_evidence_context(sources, max_chars_each=None)
+    if clean_evidence and variant != "focused_sinhala_qa":
+        raise ValueError("Clean evidence rendering is specific to focused_sinhala_qa.")
+    context = build_evidence_context(sources, max_chars_each=None, clean_evidence=clean_evidence)
     if variant == "legacy_rag_prompt":
         return render_legacy_rag_prompt(question, context)
     instruction, source_label, question_label, answer_label = PROMPT_FORMATS[variant]

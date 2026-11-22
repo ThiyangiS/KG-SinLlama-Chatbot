@@ -85,13 +85,43 @@ def _completion_candidate(raw, stops):
     return raw[:cut].strip()
 
 
+_ANSWER_END = re.compile(r"<\s*end(?:\s*_\s*|\s*)answer\s*>\s*\Z", re.IGNORECASE)
+_TRAILING_SOURCE_ID = re.compile(r"\s+\[([\w.-]+)\]\s*\Z")
+_LEADING_SOURCE_ID = re.compile(r"\A\[([\w.-]+)\][^\S\r\n]*\r?\n")
+
+
+def clean_experimental_completion(completion, sources):
+    """Strip recognized terminal metadata from a generated completion only."""
+    quoted = "\n".join(row["source_quote"] for row in sources)
+    selected_ids = {row["chunk_id"] for row in sources if f"[{row['chunk_id']}]" not in quoted}
+    candidate = completion.strip()
+    while (source := _LEADING_SOURCE_ID.match(candidate)) and source[1] in selected_ids:
+        candidate = candidate[source.end():].lstrip()
+    while candidate:
+        marker = _ANSWER_END.search(candidate)
+        if marker:
+            candidate = candidate[:marker.start()].rstrip()
+            continue
+        source = _TRAILING_SOURCE_ID.search(candidate)
+        if source and source[1] in selected_ids and (
+            "\n" in candidate[source.start():source.start(1)]
+            or candidate[:source.start()].endswith((".", "!", "?", "।"))
+            or _ANSWER_END.search(candidate[:source.start()])
+        ):
+            candidate = candidate[:source.start()].rstrip()
+            continue
+        break
+    return candidate
+
+
 class SinLlamaGenerator:
     """Load SinLlama lazily via CUDA 4-bit inference, using the cache by default."""
 
-    def __init__(self, model_id=SINLLAMA_MODEL, config=None, *, local_files_only=True):
+    def __init__(self, model_id=SINLLAMA_MODEL, config=None, *, local_files_only=True, revision=None):
         self.model_id = model_id
         self.config = config or GenerationConfig()
         self.local_files_only = local_files_only
+        self.revision = revision
         self._load_error = None
         self._model = None
         self._tokenizer = None
@@ -108,7 +138,10 @@ class SinLlamaGenerator:
             bnb_4bit_use_double_quant=True,
             bnb_4bit_compute_dtype=torch.float16,
         )
-        tokenizer = AutoTokenizer.from_pretrained(self.model_id, local_files_only=self.local_files_only)
+        revision = {"revision": self.revision} if self.revision else {}
+        tokenizer = AutoTokenizer.from_pretrained(
+            self.model_id, local_files_only=self.local_files_only, **revision,
+        )
         if tokenizer.pad_token_id is None:
             tokenizer.pad_token = tokenizer.eos_token
         model = AutoModelForCausalLM.from_pretrained(
@@ -118,6 +151,7 @@ class SinLlamaGenerator:
             low_cpu_mem_usage=True,
             local_files_only=self.local_files_only,
             use_safetensors=True,
+            **revision,
         )
         self._tokenizer, self._model = tokenizer, model.eval()
 
