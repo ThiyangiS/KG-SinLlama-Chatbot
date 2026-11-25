@@ -160,10 +160,10 @@ def quality_answer(question, session, model, sources, headings, debug=False):
 def self_test():
     # No neo4j package or connection needed. Use original TXT evidence only.
     from Sigiriya_GraphRAG_Stage2_Quality_Fix import SECTION_RE
-    source_path=next((p for p in Path(__file__).parent.glob('*.txt')
-                      if 'SIGIRIYA' in p.name.upper() and 'SINHALATXT' in p.name.upper()),None)
-    if not source_path:
-        raise RuntimeError('Missing original SIGIRIYA...Sinhalatxt...txt in folder.')
+    from Sigiriya_GraphRAG_Stage2 import SOURCE_PATH
+    source_path=SOURCE_PATH
+    if not source_path.is_file():
+        raise RuntimeError(f'Missing Sigiriya source: {source_path}')
     doc=source_path.read_text(encoding='utf8')
     records={}
     for number, text in SECTION_RE.findall(doc):

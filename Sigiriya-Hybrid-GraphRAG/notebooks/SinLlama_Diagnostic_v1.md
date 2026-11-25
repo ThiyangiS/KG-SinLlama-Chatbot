@@ -1,6 +1,6 @@
 ﻿# SinLlama generation and verification diagnostic v1
 
-The v4 results reported for this task were 1 accepted, 6 fallbacks, and 2 skipped. The workspace has the v4 runtime ZIP and the saved evidence packet. The v4 raw completion log is unavailable here, so the historical diagnoses below use the reported observations. The new GPU run produces a separate audit.
+The v4 results reported for this task were 1 accepted, 6 fallbacks, and 2 skipped. The v4 runtime ZIP is available in Git at commit `55c6836`; the evidence packet is still in `results/generation/`. The v4 raw completion log is unavailable here, so the historical diagnoses below use the reported observations. The new GPU run produces a separate audit.
 
 | Question | Reported v4 result | Diagnosis |
 | --- | --- | --- |
@@ -36,7 +36,7 @@ python -B -m unittest discover -s tests
 python -B -m scripts.sinllama_diagnostic_v1 bundle
 ```
 
-Open [the diagnostic notebook](../notebooks/sinllama_colab/Sigiriya_SinLlama_Diagnostic_v1.ipynb) in Colab, select a GPU runtime, and run all cells. Upload 'results/sinllama_diagnostic_v1/sigiriya_sinllama_diagnostic_v1.zip' when prompted. The notebook downloads a ZIP containing the generation JSONL, runtime and evidence settings, offline matrix, and review CSV. Check that all nine rows completed inference before comparing profiles.
+The diagnostic notebook is available in Git at commit `55c6836`. On a CUDA runtime with the diagnostic bundle extracted, run `python -B -m scripts.sinllama_diagnostic_v1 gpu`. Check that all nine rows completed inference before comparing profiles.
 
 ## Reviewing the outputs
 

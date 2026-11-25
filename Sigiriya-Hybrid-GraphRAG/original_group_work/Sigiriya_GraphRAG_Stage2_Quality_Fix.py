@@ -538,9 +538,10 @@ def main():
     if args.quality_self_test:
         return quality_self_test()
     if args.offline_check:
-        path=next(iter(BASE.glob('SIGIRIYA*Sinhalatxt*.txt')),None)
-        if not path:
-            print('Place original Sinhala Sigiriya source .txt in this folder to run offline validation.',file=sys.stderr)
+        from Sigiriya_GraphRAG_Stage2 import SOURCE_PATH
+        path=SOURCE_PATH
+        if not path.is_file():
+            print(f'Missing Sigiriya source: {path}',file=sys.stderr)
             return 2
         return 0 if validate_offline(path) else 2
     try:

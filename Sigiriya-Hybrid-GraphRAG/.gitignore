@@ -1,0 +1,3 @@
+.env
+/results/local_export/
+/results/colab_runtime/

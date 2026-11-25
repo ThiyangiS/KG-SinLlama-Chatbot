@@ -25,6 +25,7 @@ import argparse
 import csv
 import hashlib
 import json
+import os
 import re
 import sys
 import time
@@ -33,6 +34,7 @@ from getpass import getpass
 from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
+SOURCE_PATH = BASE.parent / 'data' / 'raw' / 'SIGIRIYA – TOURISM INFORMATIONSinhalatxt.txt'
 MANIFEST_PATH = BASE / 'Sigiriya_KG_Expansion_Manifest.json'
 OUTPUT_PATH = BASE / 'Sigiriya_GraphRAG_Stage2_Answers.json'
 VALID_RELATIONS = frozenset({
@@ -125,11 +127,17 @@ def get_chunks(session):
 
 def db_connection():
     from neo4j import GraphDatabase
-    from Sigiriya_Multi_Query_Retrieval import URI, USERNAME, DATABASE
-    pw = getpass('Neo4j password: ')
-    driver = GraphDatabase.driver(URI, auth=(USERNAME, pw))
-    driver.verify_connectivity()
-    return driver, DATABASE
+    uri = os.getenv('NEO4J_URI', 'bolt://127.0.0.1:7687')
+    username = os.getenv('NEO4J_USERNAME', 'neo4j')
+    database = os.getenv('NEO4J_DATABASE', 'neo4j')
+    password = os.getenv('NEO4J_PASSWORD') or getpass('Neo4j password: ')
+    driver = GraphDatabase.driver(uri, auth=(username, password))
+    try:
+        driver.verify_connectivity()
+    except Exception:
+        driver.close()
+        raise
+    return driver, database
 
 
 def preview(session, doc):
@@ -407,11 +415,10 @@ def main():
     g.add_argument('--file',type=Path)
     args=parser.parse_args()
     if args.offline_check:
-        path=next(iter(BASE.glob('SIGIRIYA*Sinhalatxt*.txt')),None)
-        if not path:
-            print('Place original Sinhala Sigiriya source .txt in this folder to run offline validation.',file=sys.stderr)
+        if not SOURCE_PATH.is_file():
+            print(f'Missing Sigiriya source: {SOURCE_PATH}', file=sys.stderr)
             return 2
-        return 0 if validate_offline(path) else 2
+        return 0 if validate_offline(SOURCE_PATH) else 2
     try:
         doc=load_manifest()
         driver,database=db_connection()

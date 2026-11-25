@@ -1,21 +1,14 @@
 """Create Sigiriya GraphRAG data inside a dedicated, EMPTY local Neo4j database.
 
-Place this next to Sigiriya_GraphRAG_Stage2.py in the extracted Stage2 folder.
-Requires: neo4j, sentence-transformers, numpy. Does NOT delete data.
+Uses the canonical Sinhala document and the Stage 2 graph manifest.
+Reads Neo4j connection settings from the environment.
 """
 import re
 import time
-from pathlib import Path
-from getpass import getpass
 
-from neo4j import GraphDatabase
 from sentence_transformers import SentenceTransformer
 import Sigiriya_GraphRAG_Stage2 as stage2
 
-BASE = Path(__file__).resolve().parent
-URI = 'bolt://127.0.0.1:7687'
-USERNAME = 'neo4j'
-DATABASE = 'neo4j'
 MODEL_NAME = 'intfloat/multilingual-e5-base'
 
 SOURCE_PATTERN = re.compile(r'(?ms)^##\s+(\d+)\.\s+([^\n]+)\n(.*?)(?=^##\s+\d+\.|\Z)')
@@ -32,16 +25,13 @@ LEGACY_ATTRACTIONS = {
 
 
 def load_source_and_validate():
-    source_files = list(BASE.glob('SIGIRIYA*Sinhalatxt*.txt'))
-    if len(source_files) != 1:
-        raise RuntimeError(f'Expected exactly one Sinhala source document in {BASE}; found {len(source_files)}')
-    source = source_files[0].read_text(encoding='utf-8-sig')
+    source = stage2.SOURCE_PATH.read_text(encoding='utf-8-sig')
     chunks = {}
     for n, title, body in SOURCE_PATTERN.findall(source):
         cid = f'sigiriya_{int(n):03d}'
         chunks[cid] = dict(id=cid, heading=f'{int(n)}. {title.strip()}',
                            text=body.strip(), destination='Sigiriya')
-    manifest = stage2.load_manifest(BASE / 'Sigiriya_KG_Expansion_Manifest.json')
+    manifest = stage2.load_manifest()
     good, bad = stage2.validate_facts(manifest, chunks)
     if len(chunks) != 22 or len(manifest['entities']) != 49 or len(good) != 54 or bad:
         raise RuntimeError(f'Source validation failed: chunks={len(chunks)}, '
@@ -52,15 +42,13 @@ def load_source_and_validate():
 
 def main():
     chunks, manifest, valid_facts = load_source_and_validate()
-    pw = getpass('Password for your NEW Sigiriya Neo4j instance: ')
-    driver = GraphDatabase.driver(URI, auth=(USERNAME, pw))
+    driver, database = stage2.db_connection()
     try:
-        driver.verify_connectivity()
-        with driver.session(database=DATABASE) as session:
+        with driver.session(database=database) as session:
             count = session.run('MATCH (n) RETURN count(n) AS n').single()['n']
             if count:
                 raise RuntimeError(f'TARGET IS NOT EMPTY ({count} nodes). Stopping to protect existing graph. '
-                                   'Start the new empty Sigiriya instance, not Ella.')
+                                   'Use a dedicated empty Neo4j database.')
             print('PASS: connected to empty local database.')
 
         print('Loading multilingual E5-base on CPU (first run downloads model weights)...')
@@ -75,7 +63,7 @@ def main():
         rows = [{**chunks[cid], 'embedding': vectors[i].astype(float).tolist(),
                  'embedding_heading': headings[i].astype(float).tolist()}
                 for i, cid in enumerate(ids)]
-        with driver.session(database=DATABASE) as session:
+        with driver.session(database=database) as session:
             for label, constraint_name in [('Chunk', 'chunk'), ('TourismEntity', 'tourism_entity'),
                                            ('TourismFact', 'tourism_fact')]:
                 session.run(f'CREATE CONSTRAINT sigiriya_{constraint_name}_id IF NOT EXISTS '

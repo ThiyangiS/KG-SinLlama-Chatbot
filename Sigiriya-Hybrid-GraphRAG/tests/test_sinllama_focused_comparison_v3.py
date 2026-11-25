@@ -3,7 +3,9 @@ from copy import deepcopy
 from unittest.mock import patch
 
 from scripts.sinllama_diagnostic_v1 import EVIDENCE, load_packet
-from scripts.sinllama_focused_comparison_v3 import FocusedComparisonGenerator, audit, run_comparison
+from scripts.sinllama_focused_comparison_v3 import (
+    FocusedComparisonGenerator, audit, run_comparison, run_selected,
+)
 from scripts.sinllama_legacy_rag_comparison_v1 import LEGACY_V4, ComparisonGenerator
 from scripts.sinllama_legacy_rag_comparison_v2 import topic_rows
 from src.generation import _quote_pieces
@@ -100,3 +102,30 @@ class FocusedComparisonTests(unittest.TestCase):
             self.assertTrue(first["strict"]["accepted"])
             self.assertEqual(second["final_answer"], self.topics[1]["extractive_fallback"])
         self.assertTrue(all(record["strict"]["accepted"] for record in records[6:]))
+
+    def test_selected_inference_reuses_the_comparison_decisions(self):
+        def generate(arm, row):
+            raw = row["sources"][0]["source_quote"]
+            return {"raw_model_output": raw, "candidate": raw}
+
+        payload = {"kind": "sigiriya_evidence", "schema_version": 1,
+                   "questions": self.rows.values()}
+        comparisons = list(run_comparison(self.rows, generate))
+        for arm in ("A", "B", "C"):
+            selection = {"multi_topic": arm, "factual": "R-Q01", "mechanism": "R-Q05"}
+            records = list(run_selected(payload, selection, generate))
+            expected = [row for row in comparisons if row["arm"] in selection.values()]
+            for record, comparison in zip(records, expected, strict=True):
+                self.assertEqual(record["raw_model_output"], comparison["raw_model_output"])
+                self.assertEqual(record["selected_evidence"], comparison["selected_evidence"])
+                self.assertEqual(record["strict"], comparison["strict"])
+
+    def test_selected_inference_skips_generation_for_unsupported_questions(self):
+        row = {**self.rows["Q01"], "id": "Q02", "sources": [],
+               "status": "INSUFFICIENT_DOCUMENT_EVIDENCE"}
+        payload = {"kind": "sigiriya_evidence", "schema_version": 1, "questions": [row]}
+        with patch.object(FocusedComparisonGenerator, "generate_unit") as generate:
+            record, = run_selected(payload, {"Q02": "R-Q01"}, generate)
+        generate.assert_not_called()
+        self.assertTrue(record["strict"]["fallback_used"])
+        self.assertEqual(record["final_answer"], row["extractive_fallback"])

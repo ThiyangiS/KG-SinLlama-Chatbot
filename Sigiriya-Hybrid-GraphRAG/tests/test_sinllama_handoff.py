@@ -285,7 +285,7 @@ class SinLlamaHandoffTests(unittest.TestCase):
         self.assertIn("SOURCE CHUNKS:\nfixture", display)
 
     def test_colab_code_cells_compile(self):
-        path = Path(PROJECT_DIR, "notebooks", "sinllama_colab", "Sigiriya_SinLlama_Evidence_Handoff.ipynb")
+        path = Path(PROJECT_DIR, "notebooks", "sinllama_colab", "Sigiriya_SinLlama_Focused_Comparison_v3.ipynb")
         notebook = json.loads(path.read_text(encoding="utf-8"))
         for cell in notebook["cells"]:
             source = "".join(cell["source"])

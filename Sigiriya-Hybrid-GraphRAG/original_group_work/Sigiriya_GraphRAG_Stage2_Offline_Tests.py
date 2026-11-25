@@ -9,12 +9,12 @@ import re
 from collections import defaultdict
 from pathlib import Path
 from Sigiriya_GraphRAG_Stage2 import (
-    load_manifest,validate_facts,extract_excerpt,rank_chunks,validate_offline,
+    SOURCE_PATH,load_manifest,validate_facts,rank_chunks,validate_offline,
 )
 
 BASE=Path(__file__).resolve().parent
-source=next(iter(BASE.glob('SIGIRIYA*Sinhalatxt*.txt')),None)
-assert source is not None,'Include original Sinhala Sigiriya .txt source'
+source=SOURCE_PATH
+assert source.is_file(), f'Missing original Sigiriya source: {source}'
 assert validate_offline(source)
 manifest=load_manifest()
 text=source.read_text(encoding='utf-8')

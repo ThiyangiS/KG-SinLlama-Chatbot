@@ -28,7 +28,7 @@ This package builds on the **existing** Neo4j database containing 22 Sinhala Sig
 - `Sigiriya_Answerability_Check.py`
 - `Sigiriya_Retrieval_Improvement_Batch_Reviewed.py`
 - `sigiriya_adaptive_retrieval_fixed.py`
-- `SIGIRIYA – TOURISM INFORMATIONSinhalatxt(3).txt`
+- `../data/raw/SIGIRIYA – TOURISM INFORMATIONSinhalatxt.txt`
 - `Sigiriya_Questions_Batch.txt` (earlier example questions for batch mode)
 
 ## Run in PowerShell

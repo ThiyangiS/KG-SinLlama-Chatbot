@@ -110,6 +110,41 @@ def run_comparison(rows, generate):
                **audit(rows[qid], generate(arm, rows[qid]))}
 
 
+def run_selected(payload, profiles, generate):
+    """Run one explicitly chosen v3 profile per selected evidence row."""
+    if (payload.get("kind"), payload.get("schema_version")) != ("sigiriya_evidence", 1):
+        raise ValueError("Expected a version 1 Sigiriya evidence export.")
+    rows = {row["id"]: row for row in payload["questions"]}
+    if not profiles or profiles.keys() - rows.keys() or any(
+        arm not in PROFILES for arm in profiles.values()
+    ):
+        raise ValueError("Select an existing evidence question ID and a v3 profile for each run.")
+
+    plan = []
+    for question_id, arm in profiles.items():
+        row = rows[question_id]
+        eligible = bool(row["sources"]) and row["status"] in {
+            "SOURCE_GROUNDED_EXTRACTIVE", "SOURCE_GROUNDED_FACT_EXTRACTED",
+        }
+        if eligible and arm in {"A", "B", "C"}:
+            units = topic_rows(row)
+            if not units:
+                raise ValueError(f"{question_id}: profile {arm} requires decomposed evidence.")
+        else:
+            units = [row]
+        plan.extend((question_id, arm, unit, eligible) for unit in units)
+
+    for question_id, arm, unit, eligible in plan:
+        generation = generate(arm, unit) if eligible else {
+            "raw_model_output": None, "candidate": "", "generation_error": unit["status"],
+        }
+        yield {
+            "question_id": question_id, "arm": arm, "profile": PROFILES[arm],
+            "topic_heading": unit.get("heading", ""),
+            **audit(unit, generation, v2_cleanup=arm == "A", label_cleanup=arm in {"B", "C"}),
+        }
+
+
 def replay_v2(path, rows, evidence_digest):
     with ZipFile(path) as archive:
         raw_report = archive.read("sinllama_legacy_rag_comparison_v2_gpu.json")
